@@ -1,0 +1,50 @@
+{
+      "default_bindings": [
+         {
+            "controller_type" : "vive_controller",
+            "binding_url" : "bindings.json"
+         }
+      ], 
+  "actions": [
+    {
+      "name": "/actions/main/in/trigger",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/main/in/trackpad",
+      "type": "vector2"
+    },
+    {
+      "name": "/actions/main/in/grip",
+      "type": "boolean"
+    },
+    {
+      "name": "/actions/main/in/hand_right",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/main/in/hand_left",
+      "type": "pose"
+    },
+    {
+      "name": "/actions/main/out/haptic_left",
+      "type": "vibration"
+    },
+    {
+      "name": "/actions/main/out/haptic_right",
+      "type": "vibration"
+    }
+  ],
+    "localization" : [
+        {
+            "language_tag": "en_US",
+            "/actions/main/in/trigger" : "Trigger",
+            "/actions/main/in/trackpad" : "Trackpad",
+            "/actions/main/in/grip" : "Grip",
+            "/actions/main/in/hand_right" : "Right Hand Pose",
+            "/actions/main/in/hand_left" : "Left Hand Pose",
+            "/actions/main/out/haptic_left" : "Left Haptic Feedback",
+            "/actions/main/out/haptic_right" : "Right Haptic Feedback"
+        }
+    ]
+}
