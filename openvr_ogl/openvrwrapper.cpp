@@ -1,91 +1,6 @@
 #include "openvrwrapper.h"
 #include <thread>
 
-//#pragma warning(disable:4312)
-
-bool OpenVRRenderModel::init(const vr::RenderModel_t& vrRenderModel, const vr::RenderModel_TextureMap_t& vrDiffuseTexture)
-{
-	// create and bind a VAO to hold state for this model
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
-	// Populate a vertex buffer
-	glGenBuffers(1, &vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vr::RenderModel_Vertex_t) * vrRenderModel.unVertexCount, vrRenderModel.rVertexData, GL_STATIC_DRAW);
-
-	// Identify the components in the vertex buffer
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(vr::RenderModel_Vertex_t), (void *)offsetof(vr::RenderModel_Vertex_t, vPosition));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(vr::RenderModel_Vertex_t), (void *)offsetof(vr::RenderModel_Vertex_t, vNormal));
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(vr::RenderModel_Vertex_t), (void *)offsetof(vr::RenderModel_Vertex_t, rfTextureCoord));
-
-	// Create and populate the index buffer
-	glGenBuffers(1, &ibo);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * vrRenderModel.unTriangleCount * 3, vrRenderModel.rIndexData, GL_STATIC_DRAW);
-
-	glBindVertexArray(0);
-
-	// create and populate the texture
-	glGenTextures(1, &texture);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, vrDiffuseTexture.unWidth, vrDiffuseTexture.unHeight,
-		0, GL_RGBA, GL_UNSIGNED_BYTE, vrDiffuseTexture.rubTextureMapData);
-
-	// If this renders black ask McJohn what's wrong.
-	glGenerateMipmap(GL_TEXTURE_2D);
-
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	vertexCount = vrRenderModel.unTriangleCount * 3;
-
-	return true;
-}
-
-void OpenVRRenderModel::render()
-{
-	glBindVertexArray(vao);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, texture);
-
-	glDrawElements(GL_TRIANGLES, vertexCount, GL_UNSIGNED_SHORT, 0);
-
-	glBindVertexArray(0);
-}
-
-void OpenVRRenderModel::destroy()
-{
-	if (ibo != 0)
-	{
-		glDeleteBuffers(1, &ibo);
-	}
-	
-	if (vao != 0)
-	{
-		glDeleteVertexArrays(1, &vao);
-	}
-	
-	if (vbo != 0)
-	{
-		glDeleteBuffers(1, &vbo);
-	}
-	
-	if (texture != 0)
-	{
-		glDeleteTextures(1, &texture);
-	}
-}
-
 void OpenVRWrapper::init()
 {
 	memset(deviceClassChar, 0, sizeof(deviceClassChar));
@@ -120,42 +35,6 @@ void OpenVRWrapper::init()
 	printf("Initialized HMD with driver: %s, display: %s, suggested render target size: %d*%d\n", 
 		driverName.c_str(), displayName.c_str(), rtWidth, rtHeight);
 
-	for (int i = 0; i < 2; ++i)
-	{
-		FramebufferDesc& framebufferDesc = eyeFramebufferDesc[i];
-		glGenFramebuffers(1, &framebufferDesc.renderFramebufferID);
-		glBindFramebuffer(GL_FRAMEBUFFER, framebufferDesc.renderFramebufferID);
-
-		glGenRenderbuffers(1, &framebufferDesc.depthBufferID);
-		glBindRenderbuffer(GL_RENDERBUFFER, framebufferDesc.depthBufferID);
-		glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, rtWidth, rtHeight);
-		glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, framebufferDesc.depthBufferID);
-
-		glGenTextures(1, &framebufferDesc.renderTextureID);
-		glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, framebufferDesc.renderTextureID);
-		glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA8, rtWidth, rtHeight, true);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, framebufferDesc.renderTextureID, 0);
-
-		glGenFramebuffers(1, &framebufferDesc.resolveFramebufferID);
-		glBindFramebuffer(GL_FRAMEBUFFER, framebufferDesc.resolveFramebufferID);
-
-		glGenTextures(1, &framebufferDesc.resolveTextureID);
-		glBindTexture(GL_TEXTURE_2D, framebufferDesc.resolveTextureID);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, rtWidth, rtHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, framebufferDesc.resolveTextureID, 0);
-
-		// check FBO status
-		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-		if (status != GL_FRAMEBUFFER_COMPLETE)
-		{
-			throw std::runtime_error("Failed to create eye frame buffer description!");
-		}
-
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	}
-
 	eyeViewProjMat[0] = getEyeProjMat(vr::Eye_Left) * getEyeViewMat(vr::Eye_Left);
 	eyeViewProjMat[1] = getEyeProjMat(vr::Eye_Right) * getEyeViewMat(vr::Eye_Right);
 
@@ -187,69 +66,12 @@ void OpenVRWrapper::update()
 	updateTrackedDevicePose();
 }
 
-void OpenVRWrapper::render()
-{
-	if (!renderSceneFunc)
-	{
-		return;
-	}
-
-	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-	glEnable(GL_MULTISAMPLE);
-
-	// Left Eye
-	glBindFramebuffer(GL_FRAMEBUFFER, eyeFramebufferDesc[0].renderFramebufferID);
-	glViewport(0, 0, rtWidth, rtHeight);
-
-	renderSceneFunc(getViewProjMat(0));
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	glDisable(GL_MULTISAMPLE);
-
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, eyeFramebufferDesc[0].renderFramebufferID);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, eyeFramebufferDesc[0].resolveFramebufferID);
-
-	glBlitFramebuffer(0, 0, rtWidth, rtHeight, 0, 0, rtWidth, rtHeight,
-		GL_COLOR_BUFFER_BIT,
-		GL_LINEAR);
-
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-	glEnable(GL_MULTISAMPLE);
-
-	// Right Eye
-	glBindFramebuffer(GL_FRAMEBUFFER, eyeFramebufferDesc[1].renderFramebufferID);
-	glViewport(0, 0, rtWidth, rtHeight);
-
-	renderSceneFunc(getViewProjMat(1));
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	glDisable(GL_MULTISAMPLE);
-
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, eyeFramebufferDesc[1].renderFramebufferID);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, eyeFramebufferDesc[1].resolveFramebufferID);
-
-	glBlitFramebuffer(0, 0, rtWidth, rtHeight, 0, 0, rtWidth, rtHeight,
-		GL_COLOR_BUFFER_BIT,
-		GL_LINEAR);
-
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-	submit(eyeFramebufferDesc[0].resolveTextureID, eyeFramebufferDesc[1].resolveTextureID);
-}
-
 void OpenVRWrapper::destroy()
 {
 	for (int i = 0; i < 2; ++i)
 	{
-		if (controller[i].renderModel)
-		{
-			controller[i].renderModel->destroy();
-		}
+		vr::VRRenderModels()->FreeRenderModel(controller[i].model);
+		vr::VRRenderModels()->FreeTexture(controller[i].texture);
 	}
 
 	if (system)
@@ -259,35 +81,12 @@ void OpenVRWrapper::destroy()
 	}
 }
 
-bool OpenVRWrapper::isControllerActive(uint32_t hand)
-{
-	return controller[hand].renderModel != nullptr;
-}
-
-const glm::mat4& OpenVRWrapper::getControllerModelMat(uint32_t hand)
-{
-	return controller[hand].modelMat;
-}
-
-void OpenVRWrapper::renderController(uint32_t hand)
-{
-	if (controller[hand].renderModel)
-	{
-		controller[hand].renderModel->render();
-	}
-}
-
 glm::mat4 OpenVRWrapper::getViewProjMat(uint32_t hand)
 {
 	return eyeViewProjMat[hand] * hmdModelMat;
 }
 
-void OpenVRWrapper::setRenderSceneFunc(const std::function<void(const glm::mat4&)>& renderSceneFunc)
-{
-	this->renderSceneFunc = renderSceneFunc;
-}
-
-void OpenVRWrapper::submit(GLuint leftEyeTextureID, GLuint rightEyeTextureID)
+void OpenVRWrapper::submit(uint32_t leftEyeTextureID, uint32_t rightEyeTextureID)
 {
 	vr::Texture_t leftEyeTexture = { (void*)(uintptr_t)leftEyeTextureID, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
 	vr::Texture_t rightEyeTexture = { (void*)(uintptr_t)rightEyeTextureID, vr::TextureType_OpenGL, vr::ColorSpace_Gamma };
@@ -405,9 +204,9 @@ void OpenVRWrapper::updateInput()
 				&& originInfo.trackedDeviceIndex != vr::k_unTrackedDeviceIndexInvalid)
 			{
 				std::string renderModelName = getTrackedDeviceString(originInfo.trackedDeviceIndex, vr::Prop_RenderModelName_String);
-				if (!hand.renderModel)
+				if (!hand.model)
 				{
-					hand.renderModel = loadRenderModel(renderModelName);
+					loadRenderModel(renderModelName.c_str(), hand.model, hand.texture);
 				}
 			}
 		}
@@ -495,19 +294,13 @@ bool OpenVRWrapper::getDigitalActionState(vr::VRActionHandle_t action, EDigitalA
 	}
 }
 
-OpenVRRenderModel* OpenVRWrapper::loadRenderModel(const std::string& renderModelName)
+void OpenVRWrapper::loadRenderModel(const char* name, vr::RenderModel_t*& model, vr::RenderModel_TextureMap_t*& texture)
 {
-	if (renderModels.find(renderModelName) != renderModels.end())
-	{
-		return renderModels[renderModelName];
-	}
-
-	vr::RenderModel_t *pModel;
 	vr::EVRRenderModelError error;
 	int aysncLoadSleepTime = 1;
 	while (true)
 	{
-		error = vr::VRRenderModels()->LoadRenderModel_Async(renderModelName.c_str(), &pModel);
+		error = vr::VRRenderModels()->LoadRenderModel_Async(name, &model);
 		if (error != vr::VRRenderModelError_Loading)
 		{
 			break;
@@ -516,18 +309,17 @@ OpenVRRenderModel* OpenVRWrapper::loadRenderModel(const std::string& renderModel
 		std::this_thread::sleep_for(std::chrono::seconds(aysncLoadSleepTime));
 	}
 
-	if (error != vr::VRRenderModelError_None)
+	if (error != vr::VRRenderModelError_None || !model)
 	{
-		printf("Failed to load render model %s, error: %s\n", renderModelName.c_str(), 
+		printf("Failed to load render model %s, error: %s\n", name,
 			vr::VRRenderModels()->GetRenderModelErrorNameFromEnum(error));
 
-		return nullptr;
+		return;
 	}
 
-	vr::RenderModel_TextureMap_t *pTexture;
-	while (1)
+	while (true)
 	{
-		error = vr::VRRenderModels()->LoadTexture_Async(pModel->diffuseTextureId, &pTexture);
+		error = vr::VRRenderModels()->LoadTexture_Async(model->diffuseTextureId, &texture);
 		if (error != vr::VRRenderModelError_Loading)
 		{
 			break;
@@ -536,20 +328,11 @@ OpenVRRenderModel* OpenVRWrapper::loadRenderModel(const std::string& renderModel
 		std::this_thread::sleep_for(std::chrono::seconds(aysncLoadSleepTime));
 	}
 
-	if (error != vr::VRRenderModelError_None)
+	if (error != vr::VRRenderModelError_None || !texture)
 	{
-		printf("Failed to load render model %s's texture id %d\n", renderModelName.c_str(), pModel->diffuseTextureId);
-		vr::VRRenderModels()->FreeRenderModel(pModel);
+		printf("Failed to load render model %s's texture id %d\n", name, model->diffuseTextureId);
+		vr::VRRenderModels()->FreeRenderModel(model);
 
-		return nullptr;
+		return;
 	}
-
-	OpenVRRenderModel* pRenderModel = new OpenVRRenderModel;
-	pRenderModel->init(*pModel, *pTexture);
-
-	vr::VRRenderModels()->FreeRenderModel(pModel);
-	vr::VRRenderModels()->FreeTexture(pTexture);
-
-	renderModels[renderModelName] = pRenderModel;
-	return pRenderModel;
 }

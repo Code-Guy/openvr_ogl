@@ -1,40 +1,11 @@
 #pragma once
 
 #include <openvr.h>
-#include <glad/gl.h>
 #include <glm/glm.hpp>
-#include <functional>
-#include <map>
 
 enum class EDigitalActionStateType
 {
 	Rising, Falling, All
-};
-
-struct FramebufferDesc
-{
-	GLuint depthBufferID;
-
-	GLuint renderTextureID;
-	GLuint renderFramebufferID;
-
-	GLuint resolveTextureID;
-	GLuint resolveFramebufferID;
-};
-
-class OpenVRRenderModel
-{
-public:
-	bool init(const vr::RenderModel_t& vrRenderModel, const vr::RenderModel_TextureMap_t& vrDiffuseTexture);
-	void render();
-	void destroy();
-	
-private:
-	GLuint vbo = 0;
-	GLuint ibo = 0;
-	GLuint vao = 0;
-	GLuint texture = 0;
-	uint32_t vertexCount;
 };
 
 struct Controller
@@ -44,7 +15,8 @@ struct Controller
 	vr::VRActionHandle_t hapticAction = vr::k_ulInvalidActionHandle;
 
 	glm::mat4 modelMat;
-	OpenVRRenderModel* renderModel = nullptr;
+	vr::RenderModel_t* model = nullptr;
+	vr::RenderModel_TextureMap_t* texture = nullptr;
 };
 
 class OpenVRWrapper
@@ -52,16 +24,10 @@ class OpenVRWrapper
 public:
 	void init();
 	void update();
-	void render();
 	void destroy();
 
-	bool isControllerActive(uint32_t hand);
-	const glm::mat4& getControllerModelMat(uint32_t hand);
-	void renderController(uint32_t hand);
-
 	glm::mat4 getViewProjMat(uint32_t hand);
-	void setRenderSceneFunc(const std::function<void(const glm::mat4&)>& renderSceneFunc);
-	void submit(GLuint leftEyeTexture, GLuint rightEyeTexture);
+	void submit(uint32_t leftEyeTexture, uint32_t rightEyeTexture);
 
 private:
 	std::string getTrackedDeviceString(vr::TrackedDeviceIndex_t unDevice, vr::TrackedDeviceProperty prop, vr::TrackedPropertyError* peError = nullptr);
@@ -72,9 +38,9 @@ private:
 	void updateInput();
 	void updateTrackedDevicePose();
 	void handleVREvent(const vr::VREvent_t& event);
-
 	bool getDigitalActionState(vr::VRActionHandle_t action, EDigitalActionStateType digitalActionStateType, vr::VRInputValueHandle_t *pDevicePath = nullptr);
-	OpenVRRenderModel* loadRenderModel(const std::string& renderModelName);
+
+	void loadRenderModel(const char* name, vr::RenderModel_t*& model, vr::RenderModel_TextureMap_t*& texture);
 
 	vr::IVRSystem* system = nullptr;
 	std::string driverName;
@@ -93,14 +59,10 @@ private:
 	bool bTrigger;
 	glm::vec2 trackpad;
 	Controller controller[2];
-	std::map<std::string, OpenVRRenderModel*> renderModels;
 
 	uint32_t rtWidth;
 	uint32_t rtHeight;
 
-	FramebufferDesc eyeFramebufferDesc[2];
 	glm::mat4 eyeViewProjMat[2];
 	glm::mat4 hmdModelMat;
-
-	std::function<void(const glm::mat4&)> renderSceneFunc;
 };

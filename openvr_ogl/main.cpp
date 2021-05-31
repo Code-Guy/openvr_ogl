@@ -84,15 +84,6 @@ void renderScene(const glm::mat4& eyeViewProjMat)
 
 		glDrawArrays(GL_TRIANGLES, 0, 36);
 	}
-
-	for (int i = 0; i < 2; ++i)
-	{
-		if (openVRWrapper.isControllerActive(i))
-		{
-			shader.setMat4("model", openVRWrapper.getControllerModelMat(i));
-			openVRWrapper.renderController(i);
-		}
-	}
 }
 
 int main()
@@ -237,7 +228,6 @@ int main()
 	shader.setInt("texture", 0);
 
 	openVRWrapper.init();
-	openVRWrapper.setRenderSceneFunc(std::bind(renderScene, std::placeholders::_1));
 
 	// ´´½¨×óÓÒÑÛÎÆÀí
 	GLuint eyeFramebuffer[2];
@@ -283,7 +273,6 @@ int main()
 		}
 
 		openVRWrapper.submit(eyeColorTexture[0], eyeColorTexture[1]);
-		//openVRWrapper.render();
 
 		// glfw: swap buffers and poll IO events (keys pressed/released, mouse moved etc.)
 		// -------------------------------------------------------------------------------
